@@ -14,8 +14,8 @@ app.use(cors())
 
 const config = {
   PORT: 3000,
-  TOKEN_SIGN_KEY: '<chiave per firma token>',
-  MONGODB_URI: `<url cluster mongodb>`,
+  TOKEN_SIGN_KEY: 'SecretKey123!',
+  MONGODB_URI: `mongodb+srv://Admin:Admin@cluster0.vcqdtqb.mongodb.net/`,
   MONGODB_DB: 'sample_mflix'
 }
 
