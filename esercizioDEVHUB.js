@@ -57,14 +57,14 @@ app.use(function (req, res, next) {
 
 // Effettua il login con le credenziali fornite nel body della richiesta 
 app.post('/login', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password } = req.body
   try {
     // connessione a mongodb
     await client.connect()
     // imposto il db in cui devo effettuare la query
     const db = client.db(config.MONGODB_DB)
     // cerco se esite già un utente con lo username che ho ricevuto
-    const user = await db.collection('users').findOne({ username: username });
+    const user = await db.collection('users').findOne({ name: username });
     // in caso non esiste rispondo alla richiesta indicando che l'utente non esiste
     if (!user) return res.status(404).json({ rc: 1, msg: `User ${username} not found` });
 
@@ -86,18 +86,46 @@ app.post('/login', async (req, res) => {
     await client.close()
   }
 })
+  
+
+  // async function prova() {
+  //   const password = "ciao"
+  //   const salt = await bcrypt.genSalt(10)
+  //   const pwCrypt = await bcrypt.hash (password, salt)
+  
+  // console.log(pwCrypt)
+  // }
+  // prova()
 
 // Creazione di un nuovo utente con le credenziali fornite nel body della richiesta
 app.put('/addUser', async (req, res) => {
+  const {username: name, password: password, email: email} = req.body
+  if (name )
   try {
     // leggo i parametri (obbligatori) username, password e email ricevuti nel body della richiesta
-    // apro la connessione a mongodb
     await client.connect()
-    // controllo se esiste già un utente con lo stesso username e se esiste rispondo con un messaggio di errore adeguato
-    // effettuo lo stesso controllo anche per il campo email
-    // se supero i controlli precedenti allora posso inserire il nuovo utente nel database
-    // effettua la insert sulla collection users e invia la risposta alla richiesta 
-    res.status(201).send({ rc: 0, msg: `User ${username} added successfully` })
+    const db = client.db(config.MONGODB_DB)
+    const user = await db.collection('User').findOne({ name: name })
+    if (user){
+      console.log('1')
+      return res.status(500).json({rc: 1, msg: `User ${name} already exist `})
+    }
+    const mail = await db.collection('User').findOne({ email })
+    if (mail){
+      console.log('2')
+      return res.status(500).json({rc: 1, msg: `Email ${email} already in user from another user`})
+    }
+    const salt = await bcrypt.genSalt(10)
+    const pwCrypt = await bcrypt.hash (password, salt)
+    const newUser = {
+      name: name,
+      password: pwCrypt,
+      email: email,
+    } 
+
+    const data = await db.collection('users').insertOne(newUser)
+    res.status(201).send({rc: 0, msg: `User ${name} added successfully with ID ${data.insertedId}`})
+
   } catch (err) {
     console.error(err)
     res.status(500).json({ rc: 1, msg: err.toString() })
