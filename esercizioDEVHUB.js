@@ -125,7 +125,7 @@ app.post('/addFilm', async (req, res) => {
     await client.connect();
     const db = client.db(config.MONGODB_DB);
 
-    // Controlla se il titolo esiste già
+    // Controlla se il titolo è già presente nel db
     const existing = await db.collection('movies').findOne({ title });
     if (existing) {
       return res.status(409).json({ rc: 1, msg: `Movie with title ${title} already present` });
@@ -144,39 +144,25 @@ app.post('/addFilm', async (req, res) => {
 
 app.get('/listMovies', async (req, res) => {
   try {
-    const filters = req.query || {};
-
-    await client.connect();
-    const db = client.db(config.MONGODB_DB);
+    const filters = req.query;
 
     let query = {};
 
-    if (filters.title) {
-      query.title = { $regex: filters.title, $options: "i" };
-    }
-    if (filters.director) {
-      query.director = { $regex: filters.director, $options: "i" };
-    }
-    if (filters.year) {
-      query.year = parseInt(filters.year, 10);
-    }
+    if (filters.title) query.title = filters.title;
+    if (filters.director) query.director = filters.director;
+    if (filters.year) query.year = Number(filters.year);
 
+    const db = client.db(config.MONGODB_DB);
     const movies = await db.collection('movies')
       .find(query)
-      .sort({ _id: -1 })
-      .limit(50)
       .toArray();
 
-    res.status(200).json({ rc: 0, data: movies });
+    res.json({ rc: 0, data: movies });
 
   } catch (err) {
     res.status(500).json({ rc: 1, msg: err.message });
-  } finally {
-    await client.close();
   }
 });
-
-
 
 // Attivazione web server in ascolto sulla porta indicata
 app.listen(config.PORT, () => {
