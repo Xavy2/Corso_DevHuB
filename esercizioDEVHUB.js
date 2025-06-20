@@ -50,15 +50,14 @@ app.use(function (req, res, next) {
 
 // Effettua il login con le credenziali fornite nel body della richiesta 
 app.post('/login', async (req, res) => {
-  const { username, password } = req.body
+  const { username, password } = req.body;
   try {
-    // connessione a mongodb
-    await client.connect()
-    // imposto il db in cui devo effettuare la query
-    const db = client.db(config.MONGODB_DB)
-    // cerco se esite già un utente con lo username che ho ricevuto
-    const user = await db.collection('users').findOne({ username: username });
-    // in caso non esiste rispondo alla richiesta indicando che l'utente non esiste
+    // Connessione a MongoDB
+    await client.connect();
+    const db = client.db(config.MONGODB_DB);
+    
+    // Cerco se esiste già un utente con lo username fornito
+    const user = await db.collection('users').findOne({ name: username });
     if (!user) return res.status(404).json({ rc: 1, msg: `User ${username} not found` });
     
     // Controllo che la password fornita corrisponda a quella salvata nel database
@@ -77,19 +76,36 @@ app.post('/login', async (req, res) => {
   } finally {
     await client.close();
   }
-})
+});
 
 // Creazione di un nuovo utente con le credenziali fornite nel body della richiesta
 app.put('/addUser', async (req, res) => {
+  const { username: name, password, email } = req.body; 
+  if (!name || !password || !email) {
+    return res.status(400).json({ rc: 1, msg: 'Username, password, and email are required.' });
+  }
   try {
-    // leggo i parametri (obbligatori) username, password e email ricevuti nel body della richiesta
-    // apro la connessione a mongodb
-    await client.connect()
-    // controllo se esiste già un utente con lo stesso username e se esiste rispondo con un messaggio di errore adeguato
-    // effettuo lo stesso controllo anche per il campo email
-    // se supero i controlli precedenti allora posso inserire il nuovo utente nel database
-    // effettua la insert sulla collection users e invia la risposta alla richiesta 
-    res.status(201).send({ rc: 0, msg: `User ${username} added successfully` })
+    // Connessione a MongoDB
+    await client.connect();
+    const db = client.db(config.MONGODB_DB);
+    
+    // Controllo se l'username esiste già nel database
+    const user = await db.collection('users').findOne({ name });
+    if (user) return res.status(409).json({ rc: 1, msg: `User ${name} already exists.` });
+
+    // Controllo se l'email è già in uso
+    const mail = await db.collection('users').findOne({ email });
+    if (mail) return res.status(409).json({ rc: 1, msg: `Email ${email} is already in use by another user.` });
+    
+    // Hash della password
+    const salt = await bcrypt.genSalt(10);
+    const pwCrypt = await bcrypt.hash(password, salt);
+    
+    // Inserimento del nuovo utente
+    const newUser = { name, password: pwCrypt, email };
+    const data = await db.collection('users').insertOne(newUser);
+    
+    res.status(201).json({ rc: 0, msg: `User ${name} added successfully with ID ${data.insertedId}` });
   } catch (err) {
     console.error(err);
     res.status(500).json({ rc: 1, msg: err.toString() });
@@ -129,16 +145,21 @@ app.post('/addFilm', async (req, res) => {
 app.get('/listMovies', async (req, res) => {
   try {
     const filters = req.query || {};
+
     await client.connect();
     const db = client.db(config.MONGODB_DB);
-    let query = {};
-    if (filters.title)
-      query.title = { $regex: filters.title, $options: "i" };
-    if (filters.director)
-      query.director = { $regex: filters.director, $options: "i" };
 
-    if (filters.year)
+    let query = {};
+
+    if (filters.title) {
+      query.title = { $regex: filters.title, $options: "i" };
+    }
+    if (filters.director) {
+      query.director = { $regex: filters.director, $options: "i" };
+    }
+    if (filters.year) {
       query.year = parseInt(filters.year, 10);
+    }
 
     const movies = await db.collection('movies')
       .find(query)
